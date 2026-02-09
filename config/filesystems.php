@@ -60,6 +60,20 @@ return [
             'report' => false,
         ],
 
+        'videos' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/videos'),
+            'visibility' => 'private',
+            'throw' => false,
+        ],
+
+        'lesson-pdfs' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/lesson-pdfs'),
+            'visibility' => 'private',
+            'throw' => false,
+        ],
+
     ],
 
     /*
