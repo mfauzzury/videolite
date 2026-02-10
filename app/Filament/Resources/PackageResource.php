@@ -22,7 +22,7 @@ class PackageResource extends Resource
 
     protected static ?string $navigationGroup = 'VideoLite';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 4;
 
     protected static ?string $recordTitleAttribute = 'name';
 
@@ -30,75 +30,6 @@ class PackageResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('Package Type')
-                    ->description('Choose what this package includes')
-                    ->schema([
-                        Forms\Components\Radio::make('type')
-                            ->required()
-                            ->options([
-                                'subject' => 'Entire Subject - Access to all topics in a subject',
-                                'subject_year' => 'Subject by Year - Access to all topics in a specific form/year',
-                                'topic' => 'Individual Topic - Access to a single topic only',
-                            ])
-                            ->descriptions([
-                                'subject' => 'User gets all current and future topics in this subject',
-                                'subject_year' => 'User gets all topics for a specific form (e.g., Form 1)',
-                                'topic' => 'User gets access to one specific topic only',
-                            ])
-                            ->live()
-                            ->afterStateUpdated(function ($state, Forms\Set $set) {
-                                // Clear fields when type changes
-                                if ($state === 'subject') {
-                                    $set('school_year', null);
-                                    $set('topic_id', null);
-                                } elseif ($state === 'subject_year') {
-                                    $set('topic_id', null);
-                                } elseif ($state === 'topic') {
-                                    $set('subject_id', null);
-                                    $set('school_year', null);
-                                }
-                            }),
-                    ]),
-
-                Forms\Components\Section::make('Package Scope')
-                    ->schema([
-                        // Show for 'subject' and 'subject_year'
-                        Forms\Components\Select::make('subject_id')
-                            ->label('Subject')
-                            ->relationship('subject', 'name')
-                            ->required(fn (Forms\Get $get) => in_array($get('type'), ['subject', 'subject_year']))
-                            ->visible(fn (Forms\Get $get) => in_array($get('type'), ['subject', 'subject_year']))
-                            ->searchable()
-                            ->preload()
-                            ->live(),
-
-                        // Show only for 'subject_year'
-                        Forms\Components\Select::make('school_year')
-                            ->label('School Year')
-                            ->required(fn (Forms\Get $get) => $get('type') === 'subject_year')
-                            ->visible(fn (Forms\Get $get) => $get('type') === 'subject_year')
-                            ->options([
-                                'Form 1' => 'Form 1',
-                                'Form 2' => 'Form 2',
-                                'Form 3' => 'Form 3',
-                                'Form 4' => 'Form 4',
-                                'Form 5' => 'Form 5',
-                                'Form 6' => 'Form 6',
-                            ])
-                            ->native(false),
-
-                        // Show only for 'topic'
-                        Forms\Components\Select::make('topic_id')
-                            ->label('Topic')
-                            ->relationship('topic', 'name')
-                            ->required(fn (Forms\Get $get) => $get('type') === 'topic')
-                            ->visible(fn (Forms\Get $get) => $get('type') === 'topic')
-                            ->searchable()
-                            ->preload()
-                            ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->subject->name} - {$record->school_year} - {$record->name}"),
-                    ])
-                    ->columns(2),
-
                 Forms\Components\Section::make('Basic Information')
                     ->schema([
                         Forms\Components\TextInput::make('name')
@@ -119,6 +50,23 @@ class PackageResource extends Resource
                             ->helperText('Describe what is included in this package'),
                     ])
                     ->columns(2),
+
+                Forms\Components\Section::make('Video Selection')
+                    ->description('Choose which videos to include in this package')
+                    ->schema([
+                        Forms\Components\Select::make('videos')
+                            ->relationship('videos', 'title')
+                            ->multiple()
+                            ->searchable()
+                            ->preload()
+                            ->getOptionLabelFromRecordUsing(function ($record) {
+                                $subject = $record->subject ? $record->subject->name : 'No Subject';
+                                $duration = $record->getFormattedDuration();
+                                return "{$record->title} ({$subject} - {$duration})";
+                            })
+                            ->helperText('Select videos to include in this package')
+                            ->columnSpanFull(),
+                    ]),
 
                 Forms\Components\Section::make('Pricing')
                     ->schema([
@@ -145,7 +93,9 @@ class PackageResource extends Resource
                         Forms\Components\FileUpload::make('thumbnail_path')
                             ->label('Thumbnail')
                             ->image()
+                            ->disk('public')
                             ->directory('package-thumbnails')
+                            ->imageEditor()
                             ->maxSize(2048)
                             ->helperText('Recommended size: 800x600px'),
                         Forms\Components\Toggle::make('is_featured')
@@ -195,45 +145,21 @@ class PackageResource extends Resource
                 Tables\Columns\ImageColumn::make('thumbnail_path')
                     ->label('Thumbnail')
                     ->circular()
+                    ->disk('public')
                     ->defaultImageUrl(url('/images/placeholder-package.png')),
-                Tables\Columns\BadgeColumn::make('type')
-                    ->label('Type')
-                    ->colors([
-                        'primary' => 'subject',
-                        'success' => 'subject_year',
-                        'warning' => 'topic',
-                    ])
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'subject' => 'Subject',
-                        'subject_year' => 'Subject + Year',
-                        'topic' => 'Topic',
-                        default => $state,
-                    }),
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()
                     ->sortable()
-                    ->description(function ($record): string {
-                        $topics = $record->getIncludedTopics();
-                        $count = $topics->count();
-                        $materials = $topics->sum('material_count');
-                        return "{$count} topics • {$materials} materials";
-                    }),
-                Tables\Columns\TextColumn::make('scope')
-                    ->label('Includes')
-                    ->getStateUsing(function ($record): string {
-                        if ($record->isSubjectPackage()) {
-                            return $record->subject->name . ' (All Years)';
-                        } elseif ($record->isSubjectYearPackage()) {
-                            return $record->subject->name . ' - ' . $record->school_year;
-                        } elseif ($record->isTopicPackage()) {
-                            return $record->topic->name;
-                        }
-                        return '-';
+                    ->description(function (Package $record): string {
+                        $videoCount = $record->getTotalVideosCount();
+                        $duration = $record->getTotalDuration();
+                        $minutes = floor($duration / 60);
+                        return "{$videoCount} videos • {$minutes} minutes";
                     }),
                 Tables\Columns\TextColumn::make('price')
                     ->money('MYR')
                     ->sortable()
-                    ->description(fn ($record): ?string =>
+                    ->description(fn (Package $record): ?string =>
                         $record->hasDiscount()
                             ? 'RM ' . number_format($record->compare_at_price, 2) . ' (-' . $record->getDiscountPercentage() . '%)'
                             : null
@@ -245,11 +171,13 @@ class PackageResource extends Resource
                     ->falseIcon('heroicon-o-star')
                     ->trueColor('warning')
                     ->falseColor('gray'),
-                Tables\Columns\BadgeColumn::make('status')
-                    ->colors([
-                        'success' => 'active',
-                        'danger' => 'inactive',
-                    ]),
+                Tables\Columns\TextColumn::make('status')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'active' => 'success',
+                        'inactive' => 'gray',
+                    })
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('order_column')
                     ->label('Order')
                     ->sortable(),
@@ -257,16 +185,12 @@ class PackageResource extends Resource
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('updated_at')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('type')
-                    ->options([
-                        'subject' => 'Entire Subject',
-                        'subject_year' => 'Subject by Year',
-                        'topic' => 'Individual Topic',
-                    ]),
-                Tables\Filters\SelectFilter::make('subject')
-                    ->relationship('subject', 'name'),
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
                         'active' => 'Active',

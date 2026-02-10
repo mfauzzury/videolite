@@ -20,7 +20,7 @@ return new class extends Migration
             $table->enum('school_year', ['Form 1', 'Form 2', 'Form 3', 'Form 4', 'Form 5', 'Form 6']);
             $table->string('thumbnail_path', 500)->nullable();
             $table->unsignedInteger('order_column')->default(0);
-            $table->enum('level', ['beginner', 'intermediate', 'advanced'])->default('beginner');
+            $table->string('level', 50)->nullable();
             $table->unsignedInteger('duration_minutes')->nullable();
             $table->unsignedInteger('material_count')->default(0);
             $table->enum('status', ['draft', 'published', 'archived'])->default('draft');

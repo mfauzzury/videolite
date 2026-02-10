@@ -105,7 +105,6 @@ File Storage (Local/S3)
 - [ ] DRM watermarking
 
 ### Future Enhancements
-- Course reviews & ratings
 - Course categories/tags
 - Full-text search
 - Email notifications
@@ -423,7 +422,6 @@ storage/
 4. **Future Enhancements:**
    - Analytics dashboard
    - Email notifications
-   - Course reviews system
    - Advanced course features
 
 ---

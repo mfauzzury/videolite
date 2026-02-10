@@ -22,12 +22,9 @@ class TopicResource extends Resource
 
     protected static ?string $navigationGroup = 'VideoLite';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 3;
 
     protected static ?string $recordTitleAttribute = 'name';
-
-    // Hide from navigation since topics are mainly managed via Subject
-    protected static bool $shouldRegisterNavigation = false;
 
     public static function form(Form $form): Form
     {
@@ -37,9 +34,9 @@ class TopicResource extends Resource
                     ->schema([
                         Forms\Components\Select::make('subject_id')
                             ->relationship('subject', 'name')
-                            ->required()
                             ->searchable()
-                            ->preload(),
+                            ->preload()
+                            ->nullable(),
                         Forms\Components\TextInput::make('name')
                             ->required()
                             ->maxLength(255)
@@ -52,18 +49,6 @@ class TopicResource extends Resource
                             ->maxLength(255)
                             ->unique(ignoreRecord: true)
                             ->helperText('Auto-generated from name, but can be customized'),
-                        Forms\Components\Select::make('school_year')
-                            ->required()
-                            ->options([
-                                'Form 1' => 'Form 1',
-                                'Form 2' => 'Form 2',
-                                'Form 3' => 'Form 3',
-                                'Form 4' => 'Form 4',
-                                'Form 5' => 'Form 5',
-                                'Form 6' => 'Form 6',
-                            ])
-                            ->native(false)
-                            ->helperText('School year/grade for this topic'),
                         Forms\Components\Textarea::make('description')
                             ->rows(3)
                             ->columnSpanFull(),
@@ -75,30 +60,23 @@ class TopicResource extends Resource
                         Forms\Components\FileUpload::make('thumbnail_path')
                             ->label('Thumbnail')
                             ->image()
+                            ->disk('public')
                             ->directory('topic-thumbnails')
+                            ->imageEditor()
                             ->maxSize(2048)
                             ->helperText('Recommended size: 800x600px'),
-                        Forms\Components\TextInput::make('level')
-                            ->maxLength(50)
-                            ->placeholder('Beginner, Intermediate, Advanced')
-                            ->helperText('Difficulty level (optional)'),
-                    ])
-                    ->columns(2),
+                    ]),
 
                 Forms\Components\Section::make('Settings')
                     ->schema([
                         Forms\Components\Select::make('status')
                             ->required()
                             ->options([
-                                'draft' => 'Draft',
-                                'published' => 'Published',
-                                'archived' => 'Archived',
+                                'active' => 'Active',
+                                'inactive' => 'Inactive',
                             ])
-                            ->default('draft')
+                            ->default('active')
                             ->native(false),
-                        Forms\Components\DateTimePicker::make('published_at')
-                            ->label('Publication Date')
-                            ->helperText('When this topic was/will be published'),
                         Forms\Components\TextInput::make('order_column')
                             ->label('Display Order')
                             ->required()
@@ -106,7 +84,7 @@ class TopicResource extends Resource
                             ->default(0)
                             ->helperText('Lower numbers appear first'),
                     ])
-                    ->columns(3),
+                    ->columns(2),
             ]);
     }
 
@@ -117,41 +95,31 @@ class TopicResource extends Resource
                 Tables\Columns\ImageColumn::make('thumbnail_path')
                     ->label('Thumbnail')
                     ->circular()
+                    ->disk('public')
                     ->defaultImageUrl(url('/images/placeholder-topic.png')),
                 Tables\Columns\TextColumn::make('subject.name')
                     ->sortable()
-                    ->searchable(),
-                Tables\Columns\BadgeColumn::make('school_year')
-                    ->colors([
-                        'primary' => 'Form 1',
-                        'success' => 'Form 2',
-                        'warning' => 'Form 3',
-                        'danger' => 'Form 4',
-                        'info' => 'Form 5',
-                        'secondary' => 'Form 6',
-                    ])
-                    ->sortable(),
+                    ->searchable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()
                     ->sortable()
-                    ->description(fn ($record): string => $record->material_count . ' materials'),
-                Tables\Columns\TextColumn::make('level')
+                    ->description(fn (Topic $record): string => $record->getVideoCount() . ' videos'),
+                Tables\Columns\TextColumn::make('status')
                     ->badge()
-                    ->toggleable(),
-                Tables\Columns\BadgeColumn::make('status')
-                    ->colors([
-                        'secondary' => 'draft',
-                        'success' => 'published',
-                        'danger' => 'archived',
-                    ]),
+                    ->color(fn (string $state): string => match ($state) {
+                        'active' => 'success',
+                        'inactive' => 'gray',
+                    })
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('order_column')
                     ->label('Order')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('published_at')
+                Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('created_at')
+                Tables\Columns\TextColumn::make('updated_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -159,20 +127,10 @@ class TopicResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('subject')
                     ->relationship('subject', 'name'),
-                Tables\Filters\SelectFilter::make('school_year')
-                    ->options([
-                        'Form 1' => 'Form 1',
-                        'Form 2' => 'Form 2',
-                        'Form 3' => 'Form 3',
-                        'Form 4' => 'Form 4',
-                        'Form 5' => 'Form 5',
-                        'Form 6' => 'Form 6',
-                    ]),
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
-                        'draft' => 'Draft',
-                        'published' => 'Published',
-                        'archived' => 'Archived',
+                        'active' => 'Active',
+                        'inactive' => 'Inactive',
                     ]),
                 Tables\Filters\TrashedFilter::make(),
             ])
@@ -194,7 +152,7 @@ class TopicResource extends Resource
     public static function getRelations(): array
     {
         return [
-            RelationManagers\MaterialsRelationManager::class,
+            //
         ];
     }
 

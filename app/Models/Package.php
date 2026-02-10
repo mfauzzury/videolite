@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -15,10 +15,6 @@ class Package extends Model
         'name',
         'slug',
         'description',
-        'type',
-        'subject_id',
-        'school_year',
-        'topic_id',
         'price',
         'compare_at_price',
         'thumbnail_path',
@@ -30,8 +26,6 @@ class Package extends Model
     ];
 
     protected $casts = [
-        'type' => 'string',
-        'school_year' => 'string',
         'price' => 'decimal:2',
         'compare_at_price' => 'decimal:2',
         'is_featured' => 'boolean',
@@ -39,14 +33,12 @@ class Package extends Model
     ];
 
     // Relationships
-    public function subject(): BelongsTo
+    public function videos(): BelongsToMany
     {
-        return $this->belongsTo(Subject::class);
-    }
-
-    public function topic(): BelongsTo
-    {
-        return $this->belongsTo(Topic::class);
+        return $this->belongsToMany(Video::class, 'package_video')
+            ->withPivot('order_column')
+            ->orderByPivot('order_column')
+            ->withTimestamps();
     }
 
     public function enrollments(): HasMany
@@ -70,52 +62,15 @@ class Package extends Model
         return $query->where('is_featured', true);
     }
 
-    public function scopeByType($query, string $type)
-    {
-        return $query->where('type', $type);
-    }
-
     // Helper methods
-    public function isSubjectPackage(): bool
+    public function getTotalVideosCount(): int
     {
-        return $this->type === 'subject';
+        return $this->videos()->count();
     }
 
-    public function isSubjectYearPackage(): bool
+    public function getTotalDuration(): int
     {
-        return $this->type === 'subject_year';
-    }
-
-    public function isTopicPackage(): bool
-    {
-        return $this->type === 'topic';
-    }
-
-    public function getIncludedTopics()
-    {
-        if ($this->isTopicPackage()) {
-            return Topic::where('id', $this->topic_id)->get();
-        }
-
-        if ($this->isSubjectYearPackage()) {
-            return Topic::where('subject_id', $this->subject_id)
-                ->where('school_year', $this->school_year)
-                ->where('status', 'published')
-                ->get();
-        }
-
-        if ($this->isSubjectPackage()) {
-            return Topic::where('subject_id', $this->subject_id)
-                ->where('status', 'published')
-                ->get();
-        }
-
-        return collect();
-    }
-
-    public function getTotalMaterialsCount(): int
-    {
-        return $this->getIncludedTopics()->sum('material_count');
+        return $this->videos()->sum('duration_seconds');
     }
 
     public function hasDiscount(): bool

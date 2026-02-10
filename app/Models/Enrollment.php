@@ -42,7 +42,15 @@ class Enrollment extends Model
     // Helper methods
     public function isActive(): bool
     {
-        return $this->status === 'active';
+        if ($this->status !== 'active') {
+            return false;
+        }
+
+        if ($this->expires_at && $this->expires_at->isPast()) {
+            return false;
+        }
+
+        return true;
     }
 
     public function isExpired(): bool
@@ -51,34 +59,17 @@ class Enrollment extends Model
                ($this->expires_at && $this->expires_at->isPast());
     }
 
-    public function canAccessMaterial(Material $material): bool
+    public function canAccessVideo(Video $video): bool
     {
         if (!$this->isActive()) {
             return false;
         }
 
-        $package = $this->package;
-        $topic = $material->topic;
-
-        // Check if material's topic is included in the package
-        if ($package->isTopicPackage()) {
-            return $topic->id === $package->topic_id;
-        }
-
-        if ($package->isSubjectYearPackage()) {
-            return $topic->subject_id === $package->subject_id &&
-                   $topic->school_year === $package->school_year;
-        }
-
-        if ($package->isSubjectPackage()) {
-            return $topic->subject_id === $package->subject_id;
-        }
-
-        return false;
+        return $this->package->videos->contains($video->id);
     }
 
-    public function getAccessibleTopics()
+    public function getAccessibleVideos()
     {
-        return $this->package->getIncludedTopics();
+        return $this->package->videos;
     }
 }
