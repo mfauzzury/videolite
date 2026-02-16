@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Order;
+use App\Models\Package;
 use App\Services\BillPlzService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,7 +27,7 @@ class OrderController extends Controller
     public function index(Request $request)
     {
         $orders = Auth::user()->orders()
-            ->with(['course:id,title,slug', 'enrollment'])
+            ->with(['package:id,name,slug', 'enrollment'])
             ->orderBy('created_at', 'desc')
             ->paginate(15);
 
@@ -50,7 +50,7 @@ class OrderController extends Controller
             ], 403);
         }
 
-        $order->load(['course', 'enrollment']);
+        $order->load(['package', 'enrollment']);
 
         return response()->json([
             'success' => true,
@@ -64,7 +64,7 @@ class OrderController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'course_id' => 'required|exists:courses,id',
+            'package_id' => 'required|exists:packages,id',
         ]);
 
         if ($validator->fails()) {
@@ -75,32 +75,32 @@ class OrderController extends Controller
         }
 
         $user = Auth::user();
-        $course = Course::findOrFail($request->course_id);
+        $package = Package::findOrFail($request->package_id);
 
-        // Check if course is published
-        if ($course->status !== 'published') {
+        // Check if package is active
+        if ($package->status !== 'active') {
             return response()->json([
                 'success' => false,
-                'message' => 'This course is not available for purchase',
+                'message' => 'This package is not available for purchase',
             ], 400);
         }
 
         // Check if user already enrolled
         $existingEnrollment = Enrollment::where('user_id', $user->id)
-            ->where('course_id', $course->id)
+            ->where('package_id', $package->id)
             ->where('status', 'active')
             ->first();
 
         if ($existingEnrollment) {
             return response()->json([
                 'success' => false,
-                'message' => 'You are already enrolled in this course',
+                'message' => 'You are already enrolled in this package',
             ], 400);
         }
 
-        // Check if there's a pending order for this course
+        // Check if there's a pending order for this package
         $pendingOrder = Order::where('user_id', $user->id)
-            ->where('course_id', $course->id)
+            ->where('package_id', $package->id)
             ->where('payment_status', 'pending')
             ->where('created_at', '>', now()->subHours(24))
             ->first();
@@ -122,9 +122,9 @@ class OrderController extends Controller
             $order = Order::create([
                 'order_number' => Order::generateOrderNumber(),
                 'user_id' => $user->id,
-                'course_id' => $course->id,
-                'subtotal' => $course->price,
-                'total_amount' => $course->price,
+                'package_id' => $package->id,
+                'subtotal' => $package->price,
+                'total_amount' => $package->price,
                 'payment_method' => 'billplz',
                 'payment_status' => 'pending',
                 'customer_name' => $user->name,

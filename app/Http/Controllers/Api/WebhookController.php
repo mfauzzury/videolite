@@ -66,13 +66,13 @@ class WebhookController extends Controller
 
                 // Create enrollment if not exists
                 $enrollment = Enrollment::where('user_id', $order->user_id)
-                    ->where('course_id', $order->course_id)
+                    ->where('package_id', $order->package_id)
                     ->first();
 
                 if (!$enrollment) {
                     $enrollment = Enrollment::create([
                         'user_id' => $order->user_id,
-                        'course_id' => $order->course_id,
+                        'package_id' => $order->package_id,
                         'order_id' => $order->id,
                         'status' => 'active',
                         'enrolled_at' => now(),
@@ -82,7 +82,7 @@ class WebhookController extends Controller
                         'enrollment_id' => $enrollment->id,
                         'order_id' => $order->id,
                         'user_id' => $order->user_id,
-                        'course_id' => $order->course_id,
+                        'package_id' => $order->package_id,
                     ]);
                 }
 

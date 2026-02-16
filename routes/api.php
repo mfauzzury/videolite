@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\Api\EnrollmentController;
 use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\PackageController;
 use App\Http\Controllers\Api\VideoController;
 use App\Http\Controllers\Api\WebhookController;
 use Illuminate\Http\Request;
@@ -20,16 +22,9 @@ use Illuminate\Support\Facades\Route;
 // Webhook routes (no auth, no CSRF)
 Route::post('/webhooks/billplz', [WebhookController::class, 'billplz'])->name('webhooks.billplz');
 
-// Public routes
-Route::get('/courses', function () {
-    // TODO: Implement CourseController@index in Phase 6
-    return response()->json(['message' => 'Course catalog endpoint - to be implemented']);
-});
-
-Route::get('/courses/{slug}', function ($slug) {
-    // TODO: Implement CourseController@show in Phase 6
-    return response()->json(['message' => 'Course detail endpoint - to be implemented']);
-});
+// Public routes - Packages
+Route::get('/packages', [PackageController::class, 'index'])->name('api.packages.index');
+Route::get('/packages/{package:slug}', [PackageController::class, 'show'])->name('api.packages.show');
 
 // Protected routes (require authentication)
 Route::middleware('auth:sanctum')->group(function () {
@@ -45,14 +40,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{order}', [OrderController::class, 'show'])->name('api.orders.show');
     });
 
-    // Enrollments (to be implemented in Phase 6)
+    // Enrollments
     Route::prefix('enrollments')->group(function () {
-        Route::get('/', function () {
-            return response()->json(['message' => 'My courses endpoint - to be implemented']);
-        });
-        Route::get('/{id}/curriculum', function ($id) {
-            return response()->json(['message' => 'Course curriculum endpoint - to be implemented']);
-        });
+        Route::get('/', [EnrollmentController::class, 'index'])->name('api.enrollments.index');
+        Route::get('/{enrollment}/curriculum', [EnrollmentController::class, 'curriculum'])->name('api.enrollments.curriculum');
     });
 
     // Video streaming & PDF downloads
